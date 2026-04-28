@@ -18,7 +18,50 @@ An AI-powered traffic signal management system that uses **YOLOv8 computer visio
 
 ## 🏗️ Architecture
 
+```mermaid
+graph TD
+    subgraph Frontend [React Frontend]
+        UI[Dashboard UI]
+        VC[Video Uploader]
+        WC[Weather Card]
+        IG[Intersection Grid]
+        RP[Final Report]
+    end
+
+    subgraph Backend [FastAPI Backend]
+        API[REST & WebSocket Routes]
+        SL[Signal Logic Engine]
+        PE[Perception Engine]
+        WE[Weather Service]
+        CF[Config & State]
+        
+        API <--> SL
+        SL <--> PE
+        SL <--> WE
+        SL <--> CF
+    end
+
+    subgraph Models [ML Models]
+        Y1[YOLOv8m Traffic]
+        Y2[YOLOv8 Best EV]
+        PR[Traffic Predictor]
+        SO[SORT Tracker]
+    end
+
+    subgraph External [External APIs]
+        OWM[OpenWeatherMap API]
+    end
+
+    UI <-->|WebSocket JSON| API
+    VC -->|POST Video| API
+    WE <-->|HTTP GET| OWM
+    PE --> Y1
+    PE --> Y2
+    PE --> SO
+    SL --> PR
 ```
+
+### Directory Structure
 minor_project/
 ├── ml_services/                # Backend (FastAPI + YOLO)
 │   ├── main.py                 # App entry point + WebSocket simulation engine
