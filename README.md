@@ -62,6 +62,7 @@ graph TD
 ```
 
 ### Directory Structure
+```text
 minor_project/
 ├── ml_services/                # Backend (FastAPI + YOLO)
 │   ├── main.py                 # App entry point + WebSocket simulation engine
