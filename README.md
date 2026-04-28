@@ -20,74 +20,45 @@ An AI-powered traffic signal management system that uses **YOLOv8 computer visio
 
 ```mermaid
 graph TD
-    %% Frontend
     subgraph Frontend [React Frontend]
         UI[Dashboard UI]
         VC[Video Uploader]
         WC[Weather Card]
-        IG[Live Intersection Grid]
+        IG[Intersection Grid]
+        RP[Final Report]
     end
 
-    %% External
+    subgraph Backend [FastAPI Backend]
+        API[REST & WebSocket Routes]
+        SL[Signal Logic Engine]
+        PE[Perception Engine]
+        WE[Weather Service]
+        CF[Config & State]
+        
+        API <--> SL
+        SL <--> PE
+        SL <--> WE
+        SL <--> CF
+    end
+
+    subgraph Models [ML Models]
+        Y1[YOLOv8m Traffic]
+        Y2[YOLOv8 Best EV]
+        PR[Traffic Predictor]
+        SO[SORT Tracker]
+    end
+
     subgraph External [External APIs]
         OWM[OpenWeatherMap API]
     end
 
-    %% Backend
-    subgraph Backend [FastAPI Backend]
-        API[WebSocket Engine & REST]
-
-        subgraph Perception [Perception Pipeline]
-            Y1(YOLOv8m: Vehicle Detection)
-            Y2(YOLOv8: Emergency Vehicle Detection)
-            
-            subgraph SORT [SORT Tracking Algorithm]
-                KF[[Kalman Filter]]
-                HA[[Hungarian Algorithm]]
-            end
-            
-            Y1 -->|Raw Bounding Boxes| SORT
-            SORT -->|State Prediction| KF
-            KF -->|IoU Bipartite Matching| HA
-            HA -->|Unique Vehicle IDs| SORT
-        end
-
-        subgraph WeatherSvc [Weather Service]
-            WCache(60s API Cache)
-            WMap(Condition Mapper)
-            WCache -->|Parse JSON| WMap
-        end
-
-        subgraph SignalEngine [Signal Logic Engine]
-            PR((Volume Predictor))
-            DENS(Lane Density Calc)
-            EV_M(EV Priority Matrix)
-            GCALC{Green Time Calculator}
-        end
-        
-        CFG[(Rules & Config)]
-    end
-
-    %% Connections
-    VC -->|POST MP4s| API
-    API -->|Raw Frames| Perception
-    External <-->|Fetch Real-time Data| WCache
-    
-    %% To Signal Engine
-    SORT -->|Unique Counts| DENS
-    Y2 -->|EV Types| EV_M
-    WMap -->|Weather Multipliers: Rain x1.3, Fog x1.4| GCALC
-    DENS -->|Base Saturation| GCALC
-    PR -->|Historical Weight Alpha| GCALC
-    EV_M -->|Overrides Sequence Rule E1-E3| GCALC
-    CFG -->|Thresholds: G1-G3, R1-R2| GCALC
-    
-    %% To Frontend
-    GCALC -->|Timers & Active Lane| API
-    WMap -->|Parsed Weather State| API
-    API <-->|WebSocket JSON: State, Rules, Video Feeds| UI
-    API -->|Update Weather Badge| WC
-    API -->|MJPEG Streams| IG
+    UI <-->|WebSocket JSON| API
+    VC -->|POST Video| API
+    WE <-->|HTTP GET| OWM
+    PE --> Y1
+    PE --> Y2
+    PE --> SO
+    SL --> PR
 ```
 
 ### Directory Structure
