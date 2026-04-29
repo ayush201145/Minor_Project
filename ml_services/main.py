@@ -90,6 +90,7 @@ async def websocket_endpoint(websocket: WebSocket):
             total_green_time = [0.0] * 4
             last_tick = time.time()
 
+            current_ev_types = {0: set(), 1: set(), 2: set(), 3: set()}
             while not all(finished):
                 if config.SIMULATION_TRIGGERED:
                     for cap in caps.values():
@@ -97,10 +98,19 @@ async def websocket_endpoint(websocket: WebSocket):
                     break
 
                 dens = [0.0] * 4
-                current_ev_types = {0: set(), 1: set(), 2: set(), 3: set()}
 
                 # ─── PERCEPTION ───
                 for lid, idx in LANE_MAP.items():
+                    vp = get_latest_video(v_dir, lid)
+                    if vp != curr_files.get(lid):
+                        if caps.get(lid): caps[lid].release()
+                        caps[lid], curr_files[lid] = cv2.VideoCapture(vp), vp
+                        finished[idx] = False
+                        frames_read[idx] = 0
+                        emv_buf[idx] = 0
+                        current_ev_types[idx].clear()
+                        cached_dens[idx] = 0.0
+
                     if finished[idx]:
                         continue
 
@@ -110,14 +120,11 @@ async def websocket_endpoint(websocket: WebSocket):
                             config.LATEST_FRAMES[idx] = cached_frames[idx]
                         continue
 
-                    vp = get_latest_video(v_dir, lid)
-                    if vp != curr_files.get(lid):
-                        if caps.get(lid): caps[lid].release()
-                        caps[lid], curr_files[lid] = cv2.VideoCapture(vp), vp
-
                     ret, frame = caps[lid].read() if caps.get(lid) else (False, None)
                     if not ret:
                         finished[idx] = True
+                        emv_buf[idx] = 0
+                        current_ev_types[idx].clear()
                         if last_raw_frames[idx] is not None:
                             end_frame = last_raw_frames[idx].copy()
                             end_frame = cv2.addWeighted(end_frame, 0.5, np.zeros_like(end_frame), 0.5, 0)
@@ -179,7 +186,14 @@ async def websocket_endpoint(websocket: WebSocket):
                     # Emergency vehicle detection
                     a_res = a_model(frame, verbose=False, conf=0.60)[0]
                     if len(a_res.boxes) > 0:
-                        emv_buf[idx] += 1
+                        if emv_buf[idx] < K_THRESHOLD:
+                            emv_buf[idx] += 1
+                            if emv_buf[idx] == K_THRESHOLD:
+                                emv_cnts[idx] += 1
+                                emv_buf[idx] = K_THRESHOLD + 30
+                        else:
+                            emv_buf[idx] = K_THRESHOLD + 30
+
                         for b in a_res.boxes:
                             ax1, ay1, ax2, ay2 = b.xyxy[0].cpu().numpy()
                             ev_name = a_model.names[int(b.cls[0].item())]
@@ -192,9 +206,8 @@ async def websocket_endpoint(websocket: WebSocket):
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
                     else:
                         emv_buf[idx] = max(0, emv_buf[idx] - 1)
-
-                    if emv_buf[idx] == K_THRESHOLD:
-                        emv_cnts[idx] += 1
+                        if emv_buf[idx] < K_THRESHOLD:
+                            current_ev_types[idx].clear()
 
                     ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 80])
                     if ret:
